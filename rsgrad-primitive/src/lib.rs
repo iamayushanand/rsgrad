@@ -1,4 +1,5 @@
 mod tensor;
+mod ops;
 use tensor::Tensor;
 
 pub fn add(left: usize, right: usize) -> usize {
@@ -42,5 +43,23 @@ mod tests {
 
         *a.at(&[1, 1, 1]) = 2.0;
         assert_eq!(a.at(&[1, 1, 1]), &2.0);
+    }
+
+    #[test]
+    fn addition_test() {
+        let shape: &[u32] = &[3, 2, 4];
+        let a = Tensor::constant_fill(1.0, shape);
+        let b = Tensor::constant_fill(2.0, shape);
+        let mut result = ops::Add::forward(&a, &b);
+        assert_eq!(*result.at(&[1, 1, 1]), 3.0);
+    }
+
+    #[test]
+    fn multiplication_test() {
+        let shape: &[u32] = &[3, 2, 4];
+        let a = Tensor::constant_fill(2.0, shape);
+        let b = Tensor::constant_fill(3.0, shape);
+        let mut result = ops::Mult::forward(&a, &b);
+        assert_eq!(*result.at(&[1, 1, 1]), 6.0);
     }
 }

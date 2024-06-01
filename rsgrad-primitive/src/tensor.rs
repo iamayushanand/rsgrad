@@ -34,4 +34,8 @@ impl Tensor {
         }
         &mut self.buffer[offset]
     }
+
+    pub fn clone(&self) -> Tensor {
+        Tensor {buffer: self.buffer.clone(), stride: self.stride.clone()}
+    }
 }
