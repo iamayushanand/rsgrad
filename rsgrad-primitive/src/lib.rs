@@ -1,6 +1,8 @@
-mod tensor;
-mod ops;
+pub mod tensor;
+pub mod ops;
 use tensor::Tensor;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right
@@ -48,18 +50,63 @@ mod tests {
     #[test]
     fn addition_test() {
         let shape: &[u32] = &[3, 2, 4];
-        let a = Tensor::constant_fill(1.0, shape);
-        let b = Tensor::constant_fill(2.0, shape);
-        let mut result = ops::Add::forward(&a, &b);
-        assert_eq!(*result.at(&[1, 1, 1]), 3.0);
+        let a = Rc::new(RefCell::new(Tensor::constant_fill(2.0, shape)));
+        let b = Rc::new(RefCell::new(Tensor::constant_fill(3.0, shape)));
+        let mut result = ops::Add::forward(a, b);
+        assert_eq!(*result.at(&[1, 1, 1]), 5.0);
     }
 
     #[test]
     fn multiplication_test() {
         let shape: &[u32] = &[3, 2, 4];
-        let a = Tensor::constant_fill(2.0, shape);
-        let b = Tensor::constant_fill(3.0, shape);
-        let mut result = ops::Mult::forward(&a, &b);
+        let a = Rc::new(RefCell::new(Tensor::constant_fill(2.0, shape)));
+        let b = Rc::new(RefCell::new(Tensor::constant_fill(3.0, shape)));
+        let mut result = ops::Mult::forward(a, b);
         assert_eq!(*result.at(&[1, 1, 1]), 6.0);
+    }
+    
+    #[test]
+    fn addition_grad_test() {
+        let shape: &[u32] = &[3, 2, 4];
+        let a = Rc::new(RefCell::new(Tensor::constant_fill(2.0, shape)));
+        let b = Rc::new(RefCell::new(Tensor::constant_fill(3.0, shape)));
+        //let mut result = ops::Add::forward(a, b);
+        let mut x :Vec<Rc<RefCell<Tensor>>> = Vec::new();
+        x.push(a.clone());
+        x.push(b.clone());
+        let mut result = ops::Add::grad(&x);
+        assert_eq!(*result[0].at(&[1, 1, 1]), 1.0);
+    }
+
+    #[test]
+    fn multiplication_grad_test() {
+        let shape: &[u32] = &[3, 2, 4];
+        let a = Rc::new(RefCell::new(Tensor::constant_fill(2.0, shape)));
+        let b = Rc::new(RefCell::new(Tensor::constant_fill(3.0, shape)));
+        //let mut result = ops::Add::forward(a, b);
+        let mut x :Vec<Rc<RefCell<Tensor>>> = Vec::new();
+        x.push(a.clone());
+        x.push(b.clone());
+        let mut result = ops::Mult::grad(&x);
+        assert_eq!(*result[0].at(&[1, 1, 1]), 3.0);
+    }
+
+    #[test]
+    fn backward_test() {
+        let shape: &[u32] = &[3, 2, 4];
+        let mut a = Rc::new(RefCell::new(Tensor::constant_fill(2.0, shape)));
+        let mut a_local = a.clone();
+        let mut b = Rc::new(RefCell::new(Tensor::constant_fill(3.0, shape)));
+        let mut b_local = b.clone();
+        let mut c = Rc::new(RefCell::new(Tensor::constant_fill(2.0, shape)));
+        let mut c_local = c.clone();
+        let mut intermediate = Rc::new(RefCell::new(ops::Add::forward(a, b)));
+        let mut result = ops::Mult::forward(c, intermediate);
+        let mut init_grad = Rc::new(RefCell::new(Tensor::constant_fill(1.0, shape)));
+        result.backward(init_grad);
+        assert_eq!(*result.grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 1.0);
+        assert_eq!(*a_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 2.0);
+        assert_eq!(*b_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 2.0);
+        assert_eq!(*c_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 5.0);
     }
 }
