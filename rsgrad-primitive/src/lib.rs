@@ -109,4 +109,24 @@ mod tests {
         assert_eq!(*b_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 2.0);
         assert_eq!(*c_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 5.0);
     }
+
+    #[test]
+    fn backward_test_with_log() {
+        let shape: &[u32] = &[3, 2, 4];
+        let mut a = Rc::new(RefCell::new(Tensor::constant_fill(2.0, shape)));
+        let mut a_local = a.clone();
+        let mut b = Rc::new(RefCell::new(Tensor::constant_fill(3.0, shape)));
+        let mut b_local = b.clone();
+        let mut c = Rc::new(RefCell::new(Tensor::constant_fill(2.0, shape)));
+        let mut c_local = c.clone();
+        let mut a_log = Rc::new(RefCell::new(ops::Log::forward(a)));
+        let mut intermediate = Rc::new(RefCell::new(ops::Add::forward(a_log, b)));
+        let mut result = ops::Mult::forward(c, intermediate);
+        let mut init_grad = Rc::new(RefCell::new(Tensor::constant_fill(1.0, shape)));
+        result.backward(init_grad);
+        assert_eq!(*result.grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 1.0);
+        assert_eq!(*a_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 1.0);
+        assert_eq!(*b_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 2.0);
+        assert_eq!(*c_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 3.0+(2.0_f32).ln());
+    }
 }

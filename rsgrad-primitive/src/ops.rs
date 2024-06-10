@@ -69,9 +69,41 @@ impl Mult {
 }
 
 #[derive(Clone)]
+pub struct Log;
+
+impl Log {
+
+    pub fn forward(a: Rc<RefCell<Tensor>>)-> Tensor {
+        let a_tensor = a.borrow();
+        let bufsize = a_tensor.buffer.len();
+        let mut buffer: Vec<f32> = vec![1.0; bufsize];
+        for i in 0..bufsize {
+            buffer[i] = a_tensor.buffer[i].ln();
+        } 
+        let mut children: Vec<Rc<RefCell<Tensor>>> = Vec::new();
+        children.push(a.clone());
+        Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: children, op: Some(Op::LOG)}
+    }
+
+    pub fn grad(x: &Vec<Rc<RefCell<Tensor>>>) -> Vec<Tensor> {
+        let mut result: Vec<Tensor> = Vec::new();
+        let a_tensor = x[0].borrow();
+        let bufsize = a_tensor.buffer.len();
+        let mut buffer: Vec<f32> = vec![1.0; bufsize];
+        for i in 0..bufsize {
+            buffer[i] = 1.0/a_tensor.buffer[i];
+        }
+        let res_tensor = Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: Vec::new(), op: None};
+        result.push(res_tensor);
+        result
+    }
+}
+
+#[derive(Clone)]
 pub enum Op {
     ADD,
-    MULT
+    MULT,
+    LOG
 }
 
 impl Op {
@@ -79,7 +111,8 @@ impl Op {
     pub fn fetch_grad(&self, x: &Vec<Rc<RefCell<Tensor>>>) -> Vec<Tensor> {
         match self {
             Op::ADD => Add::grad(x),
-            Op::MULT => Mult::grad(x)
+            Op::MULT => Mult::grad(x),
+            Op::LOG => Log::grad(x)
         }
     }
 }
