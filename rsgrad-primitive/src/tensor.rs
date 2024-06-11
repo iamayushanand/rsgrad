@@ -44,6 +44,16 @@ impl Tensor {
         shape
     }
 
+    pub fn at_im(&self, index: &[u32]) -> &f32 {
+        assert_eq!(index.len(), self.stride.len());
+        let ndims: usize = index.len();
+        let mut offset: usize = 0;
+        for idx in 0..ndims {
+            offset += usize::try_from(index[idx]*self.stride[idx]).unwrap();
+        }
+        &self.buffer[offset]
+    }
+
     pub fn at(&mut self, index: &[u32]) -> &mut f32 {
         assert_eq!(index.len(), self.stride.len());
         let ndims: usize = index.len();
@@ -63,12 +73,24 @@ impl Tensor {
         if self.op.is_none() {
             return ()
         }
-        let grads: Vec<Tensor> = self.op.as_ref().unwrap().fetch_grad(&self.children);
+        let grads: Vec<Tensor> = self.op.as_ref().unwrap().fetch_vjp(self.grad.as_ref().unwrap().clone(), &self.children);
         let nchild = grads.len();
         for idx in 0..nchild {
-            let child_grad: Tensor = Mult::forward_nograd(self.grad.as_ref().unwrap().clone(), Rc::new(RefCell::new(grads[idx].clone())));
-            self.children[idx].borrow_mut().backward(Rc::new(RefCell::new(child_grad)));
+            let child_grad: Rc<RefCell<Tensor>> = Rc::new(RefCell::new(grads[idx].clone()));
+            self.children[idx].borrow_mut().backward(child_grad);
         }
         
+    }
+
+    pub fn transpose(&self) -> Tensor {
+        assert_eq!(self.stride.len(), 2);
+        let shape = self.shape();
+        let mut result: Tensor = Tensor::new(self.buffer.clone(), &[shape[1], shape[0]]);
+        for i in 0..shape[1] {
+            for j in 0..shape[0] {
+                *result.at(&[i, j]) = *self.at_im(&[j, i]);
+            }
+        }
+        result
     }
 }

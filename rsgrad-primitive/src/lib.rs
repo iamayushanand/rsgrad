@@ -66,7 +66,7 @@ mod tests {
     }
     
     #[test]
-    fn addition_grad_test() {
+    fn addition_vjp_test() {
         let shape: &[u32] = &[3, 2, 4];
         let a = Rc::new(RefCell::new(Tensor::constant_fill(2.0, shape)));
         let b = Rc::new(RefCell::new(Tensor::constant_fill(3.0, shape)));
@@ -74,12 +74,13 @@ mod tests {
         let mut x :Vec<Rc<RefCell<Tensor>>> = Vec::new();
         x.push(a.clone());
         x.push(b.clone());
-        let mut result = ops::Add::grad(&x);
+        let grad = Rc::new(RefCell::new(Tensor::constant_fill(1.0, shape)));
+        let mut result = ops::Add::vjp(grad, &x);
         assert_eq!(*result[0].at(&[1, 1, 1]), 1.0);
     }
 
     #[test]
-    fn multiplication_grad_test() {
+    fn multiplication_vjp_test() {
         let shape: &[u32] = &[3, 2, 4];
         let a = Rc::new(RefCell::new(Tensor::constant_fill(2.0, shape)));
         let b = Rc::new(RefCell::new(Tensor::constant_fill(3.0, shape)));
@@ -87,7 +88,8 @@ mod tests {
         let mut x :Vec<Rc<RefCell<Tensor>>> = Vec::new();
         x.push(a.clone());
         x.push(b.clone());
-        let mut result = ops::Mult::grad(&x);
+        let grad = Rc::new(RefCell::new(Tensor::constant_fill(1.0, shape)));
+        let mut result = ops::Mult::vjp(grad, &x);
         assert_eq!(*result[0].at(&[1, 1, 1]), 3.0);
     }
 
@@ -128,5 +130,19 @@ mod tests {
         assert_eq!(*a_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 1.0);
         assert_eq!(*b_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 2.0);
         assert_eq!(*c_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1,1]), 3.0+(2.0_f32).ln());
+    }
+
+    #[test]
+    fn matmul_test() {
+        let mut a = Rc::new(RefCell::new(Tensor::constant_fill(2.0, &[6, 2])));
+        let mut a_local = a.clone();
+        let mut b = Rc::new(RefCell::new(Tensor::constant_fill(3.0, &[2, 4])));
+        let mut b_local = b.clone();
+        let mut result = ops::MatMul::forward(a, b);
+        let mut init_grad = Rc::new(RefCell::new(Tensor::constant_fill(1.0, &[6, 4])));
+        result.backward(init_grad);
+        assert_eq!(*result.grad.as_ref().unwrap().borrow_mut().at(&[1,1]), 1.0);
+        assert_eq!(*a_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1]), 12.0);
+        assert_eq!(*b_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1]), 12.0);
     }
 }
