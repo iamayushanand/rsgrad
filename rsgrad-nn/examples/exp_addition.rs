@@ -39,25 +39,60 @@ impl NeuralNet {
 fn main() {
     let mut rng = rand::thread_rng();
     let model = NeuralNet::new();
-    let optim = SGD::new(model.params(),0.0001);
+    let optim = SGD::new(model.params(),0.001);
     let mut init_grad = Rc::new(RefCell::new(Tensor::constant_fill(1.0, &[1, 1])));
     let loss = L2loss{};
-    for n_iter in 0..8000 {
+    let mut train_data: Vec<(f32, f32)> = Vec::new();
+    for n in 0..3000 {
         let a: f32 = 2.0*rng.gen::<f32>();
         let b: f32 = 2.0*rng.gen::<f32>();
+        train_data.push((a, b));
+    }
+
+    let mut val_data: Vec<(f32, f32)> = Vec::new();
+    for n in 0..3000 {
+        let a: f32 = 2.0*rng.gen::<f32>();
+        let b: f32 = 2.0*rng.gen::<f32>();
+        val_data.push((a, b));
+    }
+
+    for epoch in 0..100 {
+        let mut running_loss: f32 = 0.0;
+        for n in 0..3000 {
+            let a: f32 = train_data[n].0;
+            let b: f32 = train_data[n].1;
+            let c: f32 = a.exp()+b.exp();
+            let mut x: Rc<RefCell<Tensor>> = Rc::new(RefCell::new(Tensor::constant_fill(1.0, &[1, 2])));
+            let mut t: Rc<RefCell<Tensor>> = Rc::new(RefCell::new(Tensor::constant_fill(c, &[1,1])));
+            *x.borrow_mut().at(&[0,0]) = a;
+            *x.borrow_mut().at(&[0,1]) = b;
+            optim.zero_grad();
+            let mut res = model.forward(x);
+            let mut loss_val = loss.forward(res.clone(), t);
+            running_loss += loss_val.buffer[0];
+            loss_val.backward(init_grad.clone());
+            optim.step();
+        }
+        if epoch%10==0 {
+            println!("epoch:{} ==> loss: {}", epoch, running_loss/3000.0);
+        }
+    }
+
+    let mut val_running_loss = 0.0;
+    for n in 0..3000 {
+        let a: f32 = val_data[n].0;
+        let b: f32 = val_data[n].1;
         let c: f32 = a.exp()+b.exp();
         let mut x: Rc<RefCell<Tensor>> = Rc::new(RefCell::new(Tensor::constant_fill(1.0, &[1, 2])));
         let mut t: Rc<RefCell<Tensor>> = Rc::new(RefCell::new(Tensor::constant_fill(c, &[1,1])));
         *x.borrow_mut().at(&[0,0]) = a;
         *x.borrow_mut().at(&[0,1]) = b;
-        optim.zero_grad();
         let mut res = model.forward(x);
         let mut loss_val = loss.forward(res.clone(), t);
-        loss_val.backward(init_grad.clone());
-        optim.step();
-        if n_iter%1000==0 {
-            println!("n_iter:{} ==> expected: {} got: {} loss: {}", n_iter, c, res.borrow().buffer[0], loss_val.buffer[0]);
+        val_running_loss += loss_val.buffer[0];
+        if n%1000==0 {
+            println!("n:{} expected: {} got: {}", n, c, res.borrow().buffer[0]);
         }
     }
-
+    println!("Val running loss: {}", val_running_loss/3000.0);
 }
