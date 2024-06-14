@@ -37,6 +37,13 @@ mod tests {
     }
 
     #[test]
+    fn rand_tensor() {
+        let shape: &[u32] = &[3, 2, 4];
+        let a = Tensor::rand(shape);
+        assert_eq!(a.stride, vec![8, 4, 1]);
+    }
+
+    #[test]
     fn tensor_at() {
         let shape: &[u32] = &[3, 2, 4];
         let mut a = Tensor::constant_fill(1.0, shape);
@@ -64,7 +71,7 @@ mod tests {
         let mut result = ops::Mult::forward(a, b);
         assert_eq!(*result.at(&[1, 1, 1]), 6.0);
     }
-    
+
     #[test]
     fn addition_vjp_test() {
         let shape: &[u32] = &[3, 2, 4];
@@ -145,4 +152,15 @@ mod tests {
         assert_eq!(*a_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1]), 12.0);
         assert_eq!(*b_local.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1,1]), 12.0);
     }
+
+    #[test]
+    fn L2norm_test() {
+        let mut a = Rc::new(RefCell::new(Tensor::constant_fill(2.0, &[6])));
+        let mut result = ops::L2norm::forward(a.clone());
+        let mut init_grad = Rc::new(RefCell::new(Tensor::constant_fill(1.0, &[1])));
+        result.backward(init_grad);
+        assert_eq!(*result.at_im(&[0]), 24.0);
+        assert_eq!(*a.borrow_mut().grad.as_ref().unwrap().borrow_mut().at(&[1]), 4.0);
+    }
+
 }

@@ -3,6 +3,7 @@ use std::rc::Rc;
 use crate::ops::Op;
 use crate::ops::Mult;
 use std::cell::RefCell;
+use rand::prelude::*;
 
 pub struct Tensor {
     pub buffer: Vec<f32>,
@@ -18,6 +19,23 @@ impl Tensor {
         let mut stride: Vec<u32> = vec![1; ndims];
         for idx in (1..ndims).rev() {
             stride[idx-1] = stride[idx]*shape[idx];
+        }
+        Tensor {buffer: data, stride: stride, grad: None, children: Vec::new(), op: None}
+    }
+
+    pub fn rand(shape: &[u32]) -> Tensor {
+        let size: u32 = shape.iter().fold(1, |acc, &x| acc * x);
+        let mut data: Vec<f32> = vec![1.0; usize::try_from(size).unwrap()];
+        let mut rng = rand::thread_rng();
+        for i in 0..size {
+            let ind:usize = usize::try_from(i).unwrap();
+            data[ind] = rng.gen();
+        }
+        let ndims: usize = shape.len();
+        let mut stride: Vec<u32> = vec![1; ndims];
+        for idx in (1..ndims).rev() {
+            stride[idx-1] = stride[idx]*shape[idx];
+
         }
         Tensor {buffer: data, stride: stride, grad: None, children: Vec::new(), op: None}
     }
@@ -79,7 +97,7 @@ impl Tensor {
             let child_grad: Rc<RefCell<Tensor>> = Rc::new(RefCell::new(grads[idx].clone()));
             self.children[idx].borrow_mut().backward(child_grad);
         }
-        
+
     }
 
     pub fn transpose(&self) -> Tensor {

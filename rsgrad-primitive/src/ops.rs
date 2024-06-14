@@ -6,6 +6,17 @@ use std::cell::RefCell;
 pub struct Add;
 
 impl Add {
+    pub fn forward_nograd(a: Rc<RefCell<Tensor>>, b: Rc<RefCell<Tensor>>)-> Tensor {
+        let a_tensor = a.borrow();
+        let b_tensor = b.borrow();
+        let bufsize = a_tensor.buffer.len();
+        let mut buffer: Vec<f32> = vec![1.0; bufsize];
+        for i in 0..bufsize {
+            buffer[i] = a_tensor.buffer[i]+b_tensor.buffer[i];
+        }
+        Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: Vec::new(), op: None}
+    }
+
     pub fn forward(a: Rc<RefCell<Tensor>>, b: Rc<RefCell<Tensor>>)-> Tensor {
         let a_tensor = a.borrow();
         let b_tensor = b.borrow();
@@ -13,19 +24,60 @@ impl Add {
         let mut buffer: Vec<f32> = vec![1.0; bufsize];
         for i in 0..bufsize {
             buffer[i] = a_tensor.buffer[i]+b_tensor.buffer[i];
-        } 
+        }
         let mut children: Vec<Rc<RefCell<Tensor>>> = Vec::new();
         children.push(a.clone());
         children.push(b.clone());
         Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: children, op: Some(Op::ADD)}
-        
     }
 
     pub fn vjp(grad: Rc<RefCell<Tensor>>, x: &Vec<Rc<RefCell<Tensor>>>) -> Vec<Tensor> {
         let mut result: Vec<Tensor> = Vec::new();
         let mut ones_tensor = Rc::new(RefCell::new(Tensor::constant_fill(1.0, &(x[0].borrow().shape())[..])));
         let mut ones_tensor_dup = Rc::new(RefCell::new(Tensor::constant_fill(1.0, &(x[0].borrow().shape())[..])));
-        
+
+        let mut ones_tensor_rc = Mult::forward(grad.clone(), ones_tensor);
+        let mut ones_tensor_rc_dup = Mult::forward(grad.clone(), ones_tensor_dup);
+        result.push(ones_tensor_rc);
+        result.push(ones_tensor_rc_dup);
+        result
+    }
+}
+
+#[derive(Clone)]
+pub struct Sub;
+
+impl Sub {
+    pub fn forward_nograd(a: Rc<RefCell<Tensor>>, b: Rc<RefCell<Tensor>>)-> Tensor {
+        let a_tensor = a.borrow();
+        let b_tensor = b.borrow();
+        let bufsize = a_tensor.buffer.len();
+        let mut buffer: Vec<f32> = vec![1.0; bufsize];
+        for i in 0..bufsize {
+            buffer[i] = a_tensor.buffer[i]+b_tensor.buffer[i];
+        }
+        Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: Vec::new(), op: None}
+    }
+
+    pub fn forward(a: Rc<RefCell<Tensor>>, b: Rc<RefCell<Tensor>>)-> Tensor {
+        let a_tensor = a.borrow();
+        let b_tensor = b.borrow();
+        let bufsize = a_tensor.buffer.len();
+        let mut buffer: Vec<f32> = vec![1.0; bufsize];
+        for i in 0..bufsize {
+            buffer[i] = a_tensor.buffer[i]-b_tensor.buffer[i];
+        }
+        let mut children: Vec<Rc<RefCell<Tensor>>> = Vec::new();
+        children.push(a.clone());
+        children.push(b.clone());
+        Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: children, op: Some(Op::SUB)}
+    }
+
+    pub fn vjp(grad: Rc<RefCell<Tensor>>, x: &Vec<Rc<RefCell<Tensor>>>) -> Vec<Tensor> {
+        let mut result: Vec<Tensor> = Vec::new();
+        let mut ones_tensor = Rc::new(RefCell::new(Tensor::constant_fill(1.0, &(x[0].borrow().shape())[..])));
+        let mut ones_tensor_dup = Rc::new(RefCell::new(Tensor::constant_fill(-1.0, &(x[0].borrow().shape())[..])));
+
         let mut ones_tensor_rc = Mult::forward(grad.clone(), ones_tensor);
         let mut ones_tensor_rc_dup = Mult::forward(grad.clone(), ones_tensor_dup);
         result.push(ones_tensor_rc);
@@ -45,7 +97,7 @@ impl Mult {
         let mut buffer: Vec<f32> = vec![1.0; bufsize];
         for i in 0..bufsize {
             buffer[i] = a_tensor.buffer[i]*b_tensor.buffer[i];
-        } 
+        }
         Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: Vec::new(), op: None}
     }
 
@@ -56,7 +108,7 @@ impl Mult {
         let mut buffer: Vec<f32> = vec![1.0; bufsize];
         for i in 0..bufsize {
             buffer[i] = a_tensor.buffer[i]*b_tensor.buffer[i];
-        } 
+        }
         let mut children: Vec<Rc<RefCell<Tensor>>> = Vec::new();
         children.push(a.clone());
         children.push(b.clone());
@@ -83,7 +135,7 @@ impl Log {
         let mut buffer: Vec<f32> = vec![1.0; bufsize];
         for i in 0..bufsize {
             buffer[i] = a_tensor.buffer[i].ln();
-        } 
+        }
         let mut children: Vec<Rc<RefCell<Tensor>>> = Vec::new();
         children.push(a.clone());
         Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: children, op: Some(Op::LOG)}
@@ -108,7 +160,7 @@ pub struct MatMul;
 
 impl MatMul {
 
-    
+
     pub fn forward_nograd(a: Rc<RefCell<Tensor>>, b: Rc<RefCell<Tensor>>)-> Tensor {
         let a_tensor = a.borrow();
         let b_tensor = b.borrow();
@@ -138,8 +190,8 @@ impl MatMul {
         result.op = Some(Op::MATMUL);
         result
     }
-    
-    
+
+
     pub fn forward(a: Rc<RefCell<Tensor>>, b: Rc<RefCell<Tensor>>)-> Tensor {
         let a_tensor = a.borrow();
         let b_tensor = b.borrow();
@@ -171,7 +223,7 @@ impl MatMul {
 
     pub fn vjp(grad: Rc<RefCell<Tensor>>, x: &Vec<Rc<RefCell<Tensor>>>) -> Vec<Tensor> {
         let mut result: Vec<Tensor> = Vec::new();
-        
+
         let a_transpose = Rc::new(RefCell::new(x[0].borrow().transpose()));
         let b_transpose = Rc::new(RefCell::new(x[1].borrow().transpose()));
 
@@ -182,21 +234,88 @@ impl MatMul {
 }
 
 #[derive(Clone)]
+pub struct Relu;
+
+impl Relu {
+
+    pub fn forward(a: Rc<RefCell<Tensor>>)-> Tensor {
+        let a_tensor = a.borrow();
+        let bufsize = a_tensor.buffer.len();
+        let mut buffer: Vec<f32> = vec![1.0; bufsize];
+        for i in 0..bufsize {
+            buffer[i] = if a_tensor.buffer[i]>0.0 {a_tensor.buffer[i]} else {0.0};
+        }
+        let mut children: Vec<Rc<RefCell<Tensor>>> = Vec::new();
+        children.push(a.clone());
+        Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: children, op: Some(Op::RELU)}
+    }
+
+    pub fn vjp(grad: Rc<RefCell<Tensor>>, x: &Vec<Rc<RefCell<Tensor>>>) -> Vec<Tensor> {
+        let mut result: Vec<Tensor> = Vec::new();
+        let a_tensor = x[0].borrow();
+        let bufsize = a_tensor.buffer.len();
+        let mut buffer: Vec<f32> = vec![1.0; bufsize];
+        for i in 0..bufsize {
+            buffer[i] = if a_tensor.buffer[i]>0.0 {1.0} else {0.0};
+        }
+        let res_tensor = Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: Vec::new(), op: None};
+        result.push(Mult::forward_nograd(grad, Rc::new(RefCell::new(res_tensor))));
+        result
+    }
+}
+
+#[derive(Clone)]
+pub struct L2norm;
+
+impl L2norm {
+
+    pub fn forward(a: Rc<RefCell<Tensor>>)-> Tensor {
+        let a_tensor = a.borrow();
+        let bufsize = a_tensor.buffer.len();
+        let mut buffer: Vec<f32> = vec![1.0; 1];
+        buffer[0] = a_tensor.buffer.iter().fold(0.0, |acc, &x| acc + x*x);
+        let mut children: Vec<Rc<RefCell<Tensor>>> = Vec::new();
+        children.push(a.clone());
+        Tensor{buffer: buffer, stride: vec![1; 1], grad: None, children: children, op: Some(Op::L2NORM)}
+    }
+
+    pub fn vjp(grad: Rc<RefCell<Tensor>>, x: &Vec<Rc<RefCell<Tensor>>>) -> Vec<Tensor> {
+        let mut result: Vec<Tensor> = Vec::new();
+        let a_tensor = x[0].borrow();
+        let bufsize = a_tensor.buffer.len();
+        let mut buffer: Vec<f32> = vec![1.0; bufsize];
+        for i in 0..bufsize {
+            buffer[i] = 2.0*a_tensor.buffer[i];
+        }
+        let res_tensor = Tensor{buffer: buffer, stride: a_tensor.stride.clone(), grad: None, children: Vec::new(), op: None};
+        let grad_broadcast = Rc::new(RefCell::new(Tensor::constant_fill(grad.borrow().buffer[0], &a_tensor.shape())));
+        result.push(Mult::forward_nograd(grad_broadcast, Rc::new(RefCell::new(res_tensor))));
+        result
+    }
+}
+
+#[derive(Clone)]
 pub enum Op {
     ADD,
+    SUB,
     MULT,
     LOG,
-    MATMUL
+    MATMUL,
+    RELU,
+    L2NORM
 }
 
 impl Op {
-    
+
     pub fn fetch_vjp(&self, grad: Rc<RefCell<Tensor>>, x: &Vec<Rc<RefCell<Tensor>>>) -> Vec<Tensor> {
         match self {
             Op::ADD => Add::vjp(grad, x),
+            Op::SUB => Sub::vjp(grad, x),
             Op::MULT => Mult::vjp(grad, x),
             Op::LOG => Log::vjp(grad, x),
-            Op::MATMUL => MatMul::vjp(grad, x)
+            Op::MATMUL => MatMul::vjp(grad, x),
+            Op::RELU => Relu::vjp(grad, x),
+            Op::L2NORM => L2norm::vjp(grad, x)
         }
     }
 }

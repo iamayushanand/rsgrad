@@ -62,6 +62,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsgrad-nn"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "rsgrad-primitive",
+]
+
+[[package]]
 name = "rsgrad-primitive"
 version = "0.1.0"
 dependencies = [
